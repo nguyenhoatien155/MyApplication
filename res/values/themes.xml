@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="AppTheme" parent="@android:style/Theme.DeviceDefault.DayNight">
+        <item name="android:statusBarColor">?android:attr/colorBackground</item>
+        <item name="android:navigationBarColor">?android:attr/colorBackground</item>
+        <item name="android:windowLightStatusBar">?android:attr/isLightTheme</item>
+        <item name="android:windowLightNavigationBar">?android:attr/isLightTheme</item>
+        <item name="android:actionBarStyle">@style/AppTheme.ActionBar</item>
+    </style>
+
+    <style name="AppTheme.ActionBar" parent="@android:style/Widget.DeviceDefault.ActionBar">
+        <item name="android:background">?android:attr/colorBackground</item>
+        <item name="android:backgroundStacked">?android:attr/colorBackground</item>
+        <item name="android:backgroundSplit">?android:attr/colorBackground</item>
+    </style>
+
+</resources>

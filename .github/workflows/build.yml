@@ -1,0 +1,183 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main, test]
+
+permissions:
+  contents: write
+
+env:
+  CMDLINE_TOOLS_VERSION: "11076708"
+  BUILD_TOOLS_VERSION: "34.0.0"
+  PLATFORM_VERSION: "34"
+  OUT_DIR: build
+  KEYSTORE_FILE: debug.keystore
+  KEYSTORE_PASS: android
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Cache Android SDK
+        uses: actions/cache@v4
+        with:
+          path: ~/.android-sdk
+          key: android-sdk-${{ runner.os }}-${{ env.CMDLINE_TOOLS_VERSION }}-${{ env.BUILD_TOOLS_VERSION }}-${{ env.PLATFORM_VERSION }}
+
+      - name: Resolve SDK paths
+        run: |
+          SDK_ROOT="$HOME/.android-sdk"
+          echo "SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "BUILD_TOOLS=$SDK_ROOT/build-tools/$BUILD_TOOLS_VERSION" >> "$GITHUB_ENV"
+          echo "PLATFORM_JAR=$SDK_ROOT/platforms/android-$PLATFORM_VERSION/android.jar" >> "$GITHUB_ENV"
+          echo "SDKMANAGER=$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" >> "$GITHUB_ENV"
+
+      - name: Install cmdline-tools if missing
+        run: |
+          if [ -f "$SDKMANAGER" ]; then
+            echo ">> SDK cmdline-tools already present, skipping download"
+            exit 0
+          fi
+
+          echo ">> cmdline-tools not found, downloading to $SDK_ROOT"
+          mkdir -p "$SDK_ROOT/cmdline-tools"
+
+          ZIP_NAME="commandlinetools-linux-${CMDLINE_TOOLS_VERSION}_latest.zip"
+          TMP_ZIP="$RUNNER_TEMP/$ZIP_NAME"
+          curl -L -o "$TMP_ZIP" "https://dl.google.com/android/repository/$ZIP_NAME"
+          unzip -q -o "$TMP_ZIP" -d "$SDK_ROOT/cmdline-tools/tmp"
+
+          # Google ships the zip with an inner folder named "cmdline-tools",
+          # which needs to be renamed to "latest" to match expected structure
+          rm -rf "$SDK_ROOT/cmdline-tools/latest"
+          mv "$SDK_ROOT/cmdline-tools/tmp/cmdline-tools" "$SDK_ROOT/cmdline-tools/latest"
+          rm -rf "$SDK_ROOT/cmdline-tools/tmp" "$TMP_ZIP"
+
+          echo ">> Installed cmdline-tools at $SDK_ROOT/cmdline-tools/latest"
+
+      - name: Install build-tools & platform if missing
+        run: |
+          if [ -d "$BUILD_TOOLS" ] && [ -f "$PLATFORM_JAR" ]; then
+            echo ">> build-tools & platform already present, skipping"
+            exit 0
+          fi
+
+          echo ">> Installing build-tools $BUILD_TOOLS_VERSION and platform android-$PLATFORM_VERSION"
+          yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" \
+            "build-tools;$BUILD_TOOLS_VERSION" \
+            "platforms;android-$PLATFORM_VERSION"
+
+      - name: Resolve package from manifest
+        run: |
+          manifest_pkg="$(grep -oP 'package="\K[^"]+' AndroidManifest.xml || true)"
+
+          if [ -z "$manifest_pkg" ]; then
+            echo "ERROR: could not read package= from AndroidManifest.xml"
+            exit 1
+          fi
+
+          # package="com.example.app" -> com/example/app, matching both the
+          # src/ layout and the R.java path aapt2 generates
+          package_path="${manifest_pkg//.//}"
+          echo "PACKAGE_PATH=$package_path" >> "$GITHUB_ENV"
+          echo ">> package=$manifest_pkg -> $package_path"
+
+          if [ ! -f "src/$package_path/MainActivity.java" ]; then
+            echo "ERROR: MainActivity.java not found at src/$package_path/MainActivity.java"
+            echo "       (derived from package=\"$manifest_pkg\" in AndroidManifest.xml)"
+            exit 1
+          fi
+
+      - name: Compile resources + link manifest
+        run: |
+          mkdir -p "$OUT_DIR/gen" "$OUT_DIR/obj" out
+          "$BUILD_TOOLS/aapt2" compile --dir res -o "$OUT_DIR/compiled_res.zip"
+          "$BUILD_TOOLS/aapt2" link \
+            -o "$OUT_DIR/app-unsigned.apk" \
+            --manifest AndroidManifest.xml \
+            -I "$PLATFORM_JAR" \
+            --java "$OUT_DIR/gen" \
+            "$OUT_DIR/compiled_res.zip"
+
+      - name: Compile Java -> .class
+        run: |
+          javac -encoding UTF-8 -cp "$PLATFORM_JAR" \
+            -d "$OUT_DIR/obj" \
+            "src/$PACKAGE_PATH"/*.java \
+            "$OUT_DIR/gen/$PACKAGE_PATH/R.java"
+
+      - name: Convert .class -> classes.dex
+        run: |
+          "$BUILD_TOOLS/d8" \
+            --lib "$PLATFORM_JAR" \
+            --output "$OUT_DIR" \
+            "$OUT_DIR/obj/$PACKAGE_PATH"/*.class
+
+      - name: Package & align APK
+        run: |
+          cd "$OUT_DIR"
+          cp app-unsigned.apk temp.apk
+          zip temp.apk classes*.dex
+          cd ..
+          "$BUILD_TOOLS/zipalign" -f -p 4 "$OUT_DIR/temp.apk" "$OUT_DIR/app-aligned.apk"
+
+      - name: Resolve build name from branch
+        run: |
+          # main ships as build-N, test as test-N, so the two release series
+          # stay separate on the Releases page and never reuse a tag
+          case "$GITHUB_REF_NAME" in
+            main) channel="build" ;;
+            test) channel="test" ;;
+            *)
+              echo "ERROR: unexpected branch $GITHUB_REF_NAME"
+              exit 1
+              ;;
+          esac
+
+          # Named after the repo so APKs from different repos built from this
+          # template stay distinguishable once downloaded
+          base="${{ github.event.repository.name }}"
+          [ "$channel" = "build" ] || base="$base-$channel"
+
+          echo "CHANNEL=$channel" >> "$GITHUB_ENV"
+          echo "BUILD_NAME=$base-${{ github.run_number }}" >> "$GITHUB_ENV"
+          echo ">> branch=$GITHUB_REF_NAME channel=$channel"
+
+      - name: Sign APK (debug keystore)
+        run: |
+          APK="out/$BUILD_NAME.apk"
+
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks "$KEYSTORE_FILE" \
+            --ks-pass "pass:$KEYSTORE_PASS" \
+            --key-pass "pass:$KEYSTORE_PASS" \
+            --out "$APK" \
+            "$OUT_DIR/app-aligned.apk"
+
+          echo "APK=$APK" >> "$GITHUB_ENV"
+          echo "DONE -> $APK"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BUILD_NAME }}
+          path: ${{ env.APK }}
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.CHANNEL }}-${{ github.run_number }}
+          name: ${{ env.CHANNEL }}-${{ github.run_number }}
+          files: ${{ env.APK }}
+          prerelease: true
