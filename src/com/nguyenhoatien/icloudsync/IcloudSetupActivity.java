@@ -36,6 +36,7 @@ public class IcloudSetupActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        CrashLog.install(this);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -78,6 +79,7 @@ public class IcloudSetupActivity extends Activity {
             @Override
             public void run() {
                 SyncLog.clear();
+                CrashLog.clear(IcloudSetupActivity.this);
                 refreshLog();
             }
         }), even());
@@ -109,6 +111,11 @@ public class IcloudSetupActivity extends Activity {
                 handler.postDelayed(this, 1000);
             }
         };
+
+        String crash = CrashLog.read(this);
+        if (crash != null) {
+            SyncLog.add("=== CRASH from a previous run ===\n" + crash);
+        }
 
         showAccount();
 

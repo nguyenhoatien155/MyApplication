@@ -26,6 +26,7 @@ public class IcloudSyncAdapter extends AbstractThreadedSyncAdapter {
     @Override
     public void onPerformSync(Account account, Bundle extras, String authority,
             ContentProviderClient provider, SyncResult syncResult) {
+        CrashLog.install(getContext());
         SyncLog.add("onPerformSync ENTERED for " + account.name
                 + " authority=" + authority + " manual="
                 + extras.getBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, false));

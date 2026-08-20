@@ -7,12 +7,17 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import com.nguyenhoatien.icloudsync.CrashLog;
 import com.nguyenhoatien.icloudsync.IcloudSetupActivity;
 
 public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // ==== feature:icloudsync ====
+        CrashLog.install(this);
+        // ==== /feature:icloudsync ====
 
         TextView tv = new TextView(this);
         tv.setText(getString(R.string.app_name) + " — build OK");
@@ -22,7 +27,8 @@ public class MainActivity extends Activity {
 
         // ==== feature:icloudsync ====
         Button sync = new Button(this);
-        sync.setText("iCloud Contacts");
+        sync.setText(CrashLog.read(this) == null
+                ? "iCloud Contacts" : "iCloud Contacts (crash logged)");
         sync.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -32,9 +38,10 @@ public class MainActivity extends Activity {
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.addView(tv);
         root.addView(sync);
-        setContentView(root);
+        addContentView(root, new android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT));
         // ==== /feature:icloudsync ====
     }
 }
