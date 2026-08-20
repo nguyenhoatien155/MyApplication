@@ -69,6 +69,12 @@ public class CardDavClient {
     public CardDavClient(String root, String user, String appSpecificPassword) {
         this.root = stripTrailingSlash(root == null ? DEFAULT_ROOT : root);
         this.credential = Credentials.basic(user, appSpecificPassword);
+        // Basic auth encodes the strings verbatim, so a stray space or the
+        // wrong @-domain looks identical to a wrong password from here.
+        SyncLog.add("auth user=[" + user + "] len=" + user.length()
+                + " pwLen=" + appSpecificPassword.length()
+                + " pwHasDash=" + appSpecificPassword.contains("-")
+                + " pwTrimmed=" + appSpecificPassword.equals(appSpecificPassword.trim()));
         this.http = new OkHttpClient.Builder()
                 .connectTimeout(20, TimeUnit.SECONDS)
                 .readTimeout(60, TimeUnit.SECONDS)
@@ -183,6 +189,10 @@ public class CardDavClient {
             ResponseBody rb = resp.body();
             String text = rb == null ? "" : rb.string();
             SyncLog.add("  -> HTTP " + resp.code() + ", " + text.length() + " bytes");
+            if (resp.code() == 401 || resp.code() == 403) {
+                SyncLog.add("  WWW-Authenticate: " + resp.header("WWW-Authenticate"));
+                SyncLog.add("  body: " + firstLine(text));
+            }
             // 207 Multi-Status is the normal CardDAV answer and counts as success.
             // iCloud answers a wrong username with 403, not 401.
             if (!resp.isSuccessful()) {

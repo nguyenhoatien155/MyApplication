@@ -31,7 +31,16 @@ public class IcloudSyncAdapter extends AbstractThreadedSyncAdapter {
                 + " authority=" + authority + " manual="
                 + extras.getBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, false));
 
-        String password = accounts.getPassword(account);
+        String password;
+        try {
+            password = accounts.getPassword(account);
+        } catch (SecurityException e) {
+            SyncLog.add("getPassword DENIED: " + e.getMessage());
+            syncResult.stats.numAuthExceptions++;
+            return;
+        }
+        SyncLog.add("password read back from AccountManager, len="
+                + (password == null ? -1 : password.length()));
         if (password == null || password.length() == 0) {
             SyncLog.add("ABORT: no password stored for " + account.name);
             syncResult.stats.numAuthExceptions++;
