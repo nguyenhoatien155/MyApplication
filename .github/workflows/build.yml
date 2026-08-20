@@ -112,17 +112,39 @@ jobs:
 
       - name: Compile Java -> .class
         run: |
-          javac -encoding UTF-8 -cp "$PLATFORM_JAR" \
+          # Every .java under src/, so feature packages that sit outside the
+          # manifest package (e.g. com.nguyenhoatien.icloudsync) get compiled
+          # too. R.java stays pinned to the manifest package, where aapt2 puts it.
+          # *Test.java lives beside the code it tests but must stay out of the APK.
+          find src -name '*.java' ! -name '*Test.java' > "$OUT_DIR/sources.txt"
+          echo "$OUT_DIR/gen/$PACKAGE_PATH/R.java" >> "$OUT_DIR/sources.txt"
+          echo ">> compiling $(wc -l < "$OUT_DIR/sources.txt") source files"
+
+          # Jars are vendored inside the feature package that needs them, so a
+          # feature stays self-contained: deleting its folder drops its deps too.
+          CP="$PLATFORM_JAR"
+          for j in $(find src -name '*.jar' | sort); do
+            CP="$CP:$j"
+            echo ">> classpath += $j"
+          done
+
+          javac -encoding UTF-8 -cp "$CP" \
             -d "$OUT_DIR/obj" \
-            "src/$PACKAGE_PATH"/*.java \
-            "$OUT_DIR/gen/$PACKAGE_PATH/R.java"
+            @"$OUT_DIR/sources.txt"
 
       - name: Convert .class -> classes.dex
         run: |
+          # find, not a glob: picks up nested packages and inner classes (Foo$Bar.class)
+          find "$OUT_DIR/obj" -name '*.class' > "$OUT_DIR/classes.txt"
+          # Vendored jars must be d8 *inputs*, not just --lib: --lib only resolves
+          # references, so library code would be missing from the dex at runtime.
+          find src -name '*.jar' | sort >> "$OUT_DIR/classes.txt"
+          echo ">> dexing $(wc -l < "$OUT_DIR/classes.txt") inputs"
+
           "$BUILD_TOOLS/d8" \
             --lib "$PLATFORM_JAR" \
             --output "$OUT_DIR" \
-            "$OUT_DIR/obj/$PACKAGE_PATH"/*.class
+            @"$OUT_DIR/classes.txt"
 
       - name: Package & align APK
         run: |
