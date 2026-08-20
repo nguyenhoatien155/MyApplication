@@ -18,8 +18,9 @@ public class MainActivity extends Activity {
         tv.setText(getString(R.string.app_name) + " — build OK");
         tv.setTextSize(20);
 
-        // ==== icloudsync: on delete, drop this block, the import, and
-        // pass tv straight to setContentView instead of root ====
+        setContentView(tv);
+
+        // ==== feature:icloudsync ====
         Button sync = new Button(this);
         sync.setText("iCloud Contacts");
         sync.setOnClickListener(new View.OnClickListener() {
@@ -28,13 +29,12 @@ public class MainActivity extends Activity {
                 startActivity(new Intent(MainActivity.this, IcloudSetupActivity.class));
             }
         });
-        // ==== end icloudsync ====
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.addView(tv);
         root.addView(sync);
-
         setContentView(root);
+        // ==== /feature:icloudsync ====
     }
 }
