@@ -79,21 +79,52 @@ public class IcloudSyncAdapter extends AbstractThreadedSyncAdapter {
         extras.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true);
         extras.putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, true);
         String authority = android.provider.ContactsContract.AUTHORITY;
-        SyncLog.add("requestSync " + account.name + " syncable="
-                + ContentResolver.getIsSyncable(account, authority)
-                + " auto=" + ContentResolver.getSyncAutomatically(account, authority)
-                + " masterSyncAuto=" + ContentResolver.getMasterSyncAutomatically()
-                + " pending=" + ContentResolver.isSyncPending(account, authority)
-                + " active=" + ContentResolver.isSyncActive(account, authority));
+        SyncLog.add("requestSync " + account.name
+                + " syncable=" + stat(account, authority, "syncable")
+                + " auto=" + stat(account, authority, "auto")
+                + " masterAuto=" + stat(account, authority, "master")
+                + " pending=" + stat(account, authority, "pending")
+                + " active=" + stat(account, authority, "active"));
         ContentResolver.requestSync(account, authority, extras);
     }
 
     public static void enableAutoSync(Account account) {
         String authority = android.provider.ContactsContract.AUTHORITY;
-        ContentResolver.setIsSyncable(account, authority, 1);
-        ContentResolver.setSyncAutomatically(account, authority, true);
-        ContentResolver.addPeriodicSync(account, authority, new Bundle(), 3600L);
-        SyncLog.add("enableAutoSync done, syncable="
-                + ContentResolver.getIsSyncable(account, authority));
+        try {
+            ContentResolver.setIsSyncable(account, authority, 1);
+            ContentResolver.setSyncAutomatically(account, authority, true);
+            ContentResolver.addPeriodicSync(account, authority, new Bundle(), 3600L);
+            SyncLog.add("enableAutoSync done, syncable="
+                    + stat(account, authority, "syncable"));
+        } catch (SecurityException e) {
+            // Losing periodic sync is survivable; the manual button still works.
+            SyncLog.add("enableAutoSync DENIED: " + e.getMessage());
+        }
+    }
+
+    // Each stat is read separately: isSyncPending/isSyncActive need
+    // READ_SYNC_STATS while the others need READ_SYNC_SETTINGS, so one
+    // denial must not cost the whole diagnostic line.
+    private static String stat(Account account, String authority, String which) {
+        try {
+            if (which.equals("syncable")) {
+                return String.valueOf(ContentResolver.getIsSyncable(account, authority));
+            }
+            if (which.equals("auto")) {
+                return String.valueOf(
+                        ContentResolver.getSyncAutomatically(account, authority));
+            }
+            if (which.equals("master")) {
+                return String.valueOf(ContentResolver.getMasterSyncAutomatically());
+            }
+            if (which.equals("pending")) {
+                return String.valueOf(ContentResolver.isSyncPending(account, authority));
+            }
+            return String.valueOf(ContentResolver.isSyncActive(account, authority));
+        } catch (SecurityException e) {
+            return "DENIED";
+        } catch (RuntimeException e) {
+            return "ERR:" + e.getClass().getSimpleName();
+        }
     }
 }
