@@ -132,6 +132,7 @@ public class CardDavClient {
             c.vcard = r.data;
             out.add(c);
         }
+        SyncLog.add("  " + out.size() + " cards with data of " + rs.size() + " responses");
         return out;
     }
 
@@ -139,6 +140,9 @@ public class CardDavClient {
         String principal = findPrincipal();
         String home = findAddressbookHome(principal);
         List<String> books = findAddressbooks(home);
+        SyncLog.add("principal=" + principal);
+        SyncLog.add("home=" + home);
+        SyncLog.add("addressbooks=" + books.size() + " " + books);
 
         List<VCardContact> out = new ArrayList<VCardContact>();
         for (int i = 0; i < books.size(); i++) {
@@ -157,6 +161,7 @@ public class CardDavClient {
                 }
             }
         }
+        SyncLog.add("parsed " + out.size() + " contacts");
         return out;
     }
 
@@ -172,10 +177,12 @@ public class CardDavClient {
             b.header("Depth", depth);
         }
 
+        SyncLog.add(method + " " + url);
         Response resp = http.newCall(b.build()).execute();
         try {
             ResponseBody rb = resp.body();
             String text = rb == null ? "" : rb.string();
+            SyncLog.add("  -> HTTP " + resp.code() + ", " + text.length() + " bytes");
             // 207 Multi-Status is the normal CardDAV answer and counts as success.
             // iCloud answers a wrong username with 403, not 401.
             if (!resp.isSuccessful()) {

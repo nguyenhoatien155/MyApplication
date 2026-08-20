@@ -40,6 +40,7 @@ public class ContactsWriter {
         }
 
         result.deleted = deleteAll(accountName);
+        SyncLog.add("deleted " + result.deleted + " old raw contacts of " + accountName);
 
         List<ContentProviderOperation> ops = new ArrayList<ContentProviderOperation>();
         for (int i = 0; i < contacts.size(); i++) {
@@ -130,8 +131,10 @@ public class ContactsWriter {
 
     private void apply(List<ContentProviderOperation> ops)
             throws RemoteException, OperationApplicationException {
-        resolver.applyBatch(ContactsContract.AUTHORITY,
-                new ArrayList<ContentProviderOperation>(ops));
+        SyncLog.add("applyBatch " + ops.size() + " ops");
+        android.content.ContentProviderResult[] r = resolver.applyBatch(
+                ContactsContract.AUTHORITY, new ArrayList<ContentProviderOperation>(ops));
+        SyncLog.add("  -> " + r.length + " results, first uri=" + (r.length > 0 ? r[0].uri : null));
     }
 
     private static int countRaws(List<ContentProviderOperation> ops) {

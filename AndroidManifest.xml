@@ -51,8 +51,7 @@
 
         <service
             android:name="com.nguyenhoatien.icloudsync.IcloudSyncService"
-            android:exported="false"
-            android:process=":sync">
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.content.SyncAdapter" />
             </intent-filter>
