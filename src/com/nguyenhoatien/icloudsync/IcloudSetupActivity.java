@@ -2,6 +2,10 @@ package com.nguyenhoatien.icloudsync;
 
 import android.Manifest;
 import android.accounts.Account;
+import android.accounts.AccountManager;
+import android.accounts.AuthenticatorDescription;
+import android.content.ContentResolver;
+import android.content.SyncAdapterType;
 import android.app.Activity;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
@@ -73,6 +77,12 @@ public class IcloudSetupActivity extends Activity {
             @Override
             public void run() {
                 countContacts();
+            }
+        }), even());
+        buttons.addView(button("Check", new Runnable() {
+            @Override
+            public void run() {
+                checkWiring();
             }
         }), even());
         buttons.addView(button("Clear", new Runnable() {
@@ -240,6 +250,51 @@ public class IcloudSetupActivity extends Activity {
         refreshLog();
     }
 
+    // Asks the system what it actually registered, rather than what we
+    // asked it to register: the two differ when a service cannot be bound.
+    private void checkWiring() {
+        AccountManager am = AccountManager.get(this);
+        AuthenticatorDescription[] auths = am.getAuthenticatorTypes();
+        boolean foundAuth = false;
+        for (int i = 0; i < auths.length; i++) {
+            if (ContactsWriter.ACCOUNT_TYPE.equals(auths[i].type)) {
+                foundAuth = true;
+                SyncLog.add("AUTH REGISTERED: type=" + auths[i].type
+                        + " pkg=" + auths[i].packageName
+                        + " labelId=" + auths[i].labelId
+                        + " iconId=" + auths[i].iconId);
+            }
+        }
+        if (!foundAuth) {
+            SyncLog.add("AUTH NOT REGISTERED for " + ContactsWriter.ACCOUNT_TYPE);
+            SyncLog.add("  system knows " + auths.length + " authenticators:");
+            for (int i = 0; i < auths.length; i++) {
+                SyncLog.add("    " + auths[i].type);
+            }
+        }
+
+        SyncAdapterType[] types = ContentResolver.getSyncAdapterTypes();
+        boolean foundSync = false;
+        for (int i = 0; i < types.length; i++) {
+            if (ContactsWriter.ACCOUNT_TYPE.equals(types[i].accountType)) {
+                foundSync = true;
+                SyncLog.add("SYNC ADAPTER REGISTERED: authority=" + types[i].authority
+                        + " userVisible=" + types[i].isUserVisible()
+                        + " supportsUploading=" + types[i].supportsUploading());
+            }
+        }
+        if (!foundSync) {
+            SyncLog.add("SYNC ADAPTER NOT REGISTERED for " + ContactsWriter.ACCOUNT_TYPE);
+        }
+
+        Account[] accts = am.getAccountsByType(ContactsWriter.ACCOUNT_TYPE);
+        SyncLog.add("accounts of our type: " + accts.length);
+        for (int i = 0; i < accts.length; i++) {
+            SyncLog.add("  " + accts[i].name);
+        }
+        refreshLog();
+    }
+
     private void refreshLog() {
         String text = SyncLog.dump();
         if (text.equals(logView.getText().toString())) {
@@ -257,6 +312,8 @@ public class IcloudSetupActivity extends Activity {
     private Button button(String label, final Runnable action) {
         Button b = new Button(this);
         b.setText(label);
+        b.setTextSize(11);
+        b.setPadding(0, 0, 0, 0);
         b.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
