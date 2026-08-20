@@ -34,7 +34,7 @@
         <!-- ==== feature:icloudsync ==== -->
         <activity
             android:name="com.nguyenhoatien.icloudsync.IcloudSetupActivity"
-            android:label="iCloud Contacts"
+            android:label="@string/icloud_account_label"
             android:exported="false" />
 
         <service

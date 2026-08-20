@@ -3,4 +3,4 @@
     android:accountType="com.nguyenhoatien.icloudsync"
     android:icon="@android:drawable/ic_menu_my_calendar"
     android:smallIcon="@android:drawable/ic_menu_my_calendar"
-    android:label="iCloud Contacts" />
+    android:label="@string/icloud_account_label" />
