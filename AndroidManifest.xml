@@ -39,7 +39,7 @@
 
         <service
             android:name="com.nguyenhoatien.icloudsync.IcloudAuthenticatorService"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.accounts.AccountAuthenticator" />
             </intent-filter>
@@ -50,7 +50,7 @@
 
         <service
             android:name="com.nguyenhoatien.icloudsync.IcloudSyncService"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.content.SyncAdapter" />
             </intent-filter>
